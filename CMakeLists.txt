@@ -34,6 +34,33 @@ if(ENABLE_QT)
   )
 endif()
 
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/plugin-main.c)
+find_package(unofficial-libimobiledevice CONFIG REQUIRED)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE unofficial::libimobiledevice::libimobiledevice)
+
+find_package(unofficial-libusbmuxd CONFIG REQUIRED)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE unofficial::libusbmuxd::libusbmuxd)
+
+find_package(FFMPEG REQUIRED)
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${FFMPEG_INCLUDE_DIRS})
+target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE ${FFMPEG_LIBRARY_DIRS})
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ${FFMPEG_LIBRARIES})
+
+find_package(libjpeg-turbo CONFIG REQUIRED)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE $<IF:$<TARGET_EXISTS:libjpeg-turbo::turbojpeg>,libjpeg-turbo::turbojpeg,libjpeg-turbo::turbojpeg-static>)
+
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ./src)
+
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+    src/device_discovery.cc
+    src/ffmpeg_decode.cc
+    src/mdns_discovery.cc
+    src/mjpeg_decode.cc
+    src/net.cc
+    src/plugin.cc
+    src/proxy.cc
+    src/source.cc
+    src/sys/win/cmd.cc
+    src/sys/win/util.cc
+)
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
