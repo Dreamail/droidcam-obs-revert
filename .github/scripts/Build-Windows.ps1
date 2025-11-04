@@ -72,6 +72,8 @@ function Build {
 
     Log-Group "Configuring ${ProductName}..."
     Invoke-External cmake @CmakeArgs
+    Log-Group "Re-Configuring ${ProductName}..."
+    Invoke-External cmake @CmakeArgs
 
     Log-Group "Building ${ProductName}..."
     Invoke-External cmake @CmakeBuildArgs
