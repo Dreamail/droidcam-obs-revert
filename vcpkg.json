@@ -1,0 +1,13 @@
+{
+  "dependencies": [
+    {
+      "name": "ffmpeg",
+      "features": [
+        "avcodec"
+      ]
+    },
+    "libimobiledevice",
+    "libusbmuxd",
+    "libjpeg-turbo"
+  ]
+}
