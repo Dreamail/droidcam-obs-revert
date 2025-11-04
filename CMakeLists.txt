@@ -73,4 +73,9 @@ elseif(UNIX)
   )
 endif()
 
+if (OS_LINUX)
+  # for ffmpeg PIC compatibility, see: https://github.com/microsoft/vcpkg/issues/17292#issuecomment-935943256
+  set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-Bsymbolic")
+endif()
+
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
