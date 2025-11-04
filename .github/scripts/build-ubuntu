@@ -219,7 +219,7 @@ ${_usage_host:-}"
     cmake ${cmake_args}
 
     log_debug "Re-configure with CMake"
-    cmake ${cmake_args}
+    cmake ${cmake_args} || true
 
     log_group "Building ${product_name}..."
     cmake ${cmake_build_args}

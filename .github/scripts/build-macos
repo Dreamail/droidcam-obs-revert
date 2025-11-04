@@ -111,7 +111,7 @@ build() {
   }
 
   log_group "Configuring ${product_name}..."
-  cmake -S ${project_root} ${cmake_args}
+  cmake -S ${project_root} ${cmake_args} || true
   log_group "Re-Configuring ${product_name}..."
   cmake -S ${project_root} ${cmake_args}
 
