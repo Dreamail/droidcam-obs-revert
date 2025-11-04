@@ -112,6 +112,8 @@ build() {
 
   log_group "Configuring ${product_name}..."
   cmake -S ${project_root} ${cmake_args}
+  log_group "Re-Configuring ${product_name}..."
+  cmake -S ${project_root} ${cmake_args}
 
   log_group "Building ${product_name}..."
   run_xcodebuild() {
