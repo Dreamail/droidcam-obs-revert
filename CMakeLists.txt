@@ -59,8 +59,18 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     src/plugin.cc
     src/proxy.cc
     src/source.cc
-    src/sys/win/cmd.cc
-    src/sys/win/util.cc
 )
+
+if(WIN32)
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+      src/sys/win/cmd.cc
+      src/sys/win/util.cc
+  )
+elseif(UNIX)
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+      src/sys/unix/cmd.cc
+      src/sys/unix/util.cc
+  )
+endif()
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
