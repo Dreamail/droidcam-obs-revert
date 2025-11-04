@@ -12,7 +12,7 @@
   #define poll WSAPoll
   #define WSAErrno errno=WSAGetLastError
   typedef SOCKET socket_t;
-typedef SSIZE_T ssize_t;
+  typedef SSIZE_T ssize_t;
 #else
   #define INVALID_SOCKET -1
   #define WSAErrno(...)

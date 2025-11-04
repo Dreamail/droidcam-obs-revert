@@ -39,6 +39,7 @@ extern QMainWindow *main_window;
 #include "buffer_util.h"
 #include "device_discovery.h"
 
+#define PLUGIN_VERSION_STR "234"
 #define FPS 25
 #define MILLI_SEC 1000
 #define NANO_SEC  1000000000
@@ -71,7 +72,7 @@ struct droidcam_obs_source {
     bool use_hw;
     bool audio_running;
     bool video_running;
-    int video_width, video_height;
+    int video_resolution;
     int usb_port;
     enum VideoFormat video_format;
     struct active_device_info device_info;
@@ -372,11 +373,11 @@ static void *video_thread(void *data) {
 
     #if DROIDCAM_OVERRIDE
     // todo: dont do this
-    char client_version_str[4];
-    client_version_str[0] = obs_version_str[0];
-    client_version_str[1] = obs_version_str[2];
-    client_version_str[2] = obs_version_str[4];
-    client_version_str[3] = 0;
+    char obs_version_str_flat[4];
+    obs_version_str_flat[0] = obs_version_str[0];
+    obs_version_str_flat[1] = obs_version_str[2];
+    obs_version_str_flat[2] = obs_version_str[4];
+    obs_version_str_flat[3] = 0;
     #endif
 
 
@@ -424,15 +425,14 @@ static void *video_thread(void *data) {
 
             video_req_len = snprintf(video_req, sizeof(video_req), VIDEO_REQ,
                 VideoFormatNames[plugin->video_format][1],
-                plugin->video_width, plugin->video_height,
+                Resolutions[plugin->video_resolution],
                 plugin->usb_port,
                 os_name_version,
                 #if DROIDCAM_OVERRIDE
-                ""/*obs_version_str*/, client_version_str,
+                "", obs_version_str_flat, 5912);
                 #else
-                obs_version_str, PLUGIN_VERSION_STR,
+                obs_version_str, PLUGIN_VERSION_STR, 5912);
                 #endif
-                5912/*NONCE*/);
 
             dlog("%s", video_req);
             if (net_send_all(sock, video_req, video_req_len) <= 0) {
@@ -837,24 +837,11 @@ static const char *droidcam_signals[] = {
 };
 #endif
 
-static void settings_migration(obs_data_t *settings, droidcam_obs_source *plugin) {
-    // v2.3.4 (jan/2025)
-    const char* opt_resolution = "resolution";
-    int video_resolution_int = obs_data_get_int(settings, opt_resolution);
-    if (video_resolution_int > 0 && video_resolution_int < ARRAY_LEN(Resolutions)) {
-        dlog("### settings_migration: Resolutions[%d] => string %s", video_resolution_int, Resolutions[video_resolution_int]);
-        obs_data_set_string(settings, OPT_RESOLUTION_STR, Resolutions[video_resolution_int]);
-        obs_data_set_int(settings, opt_resolution, 0);
-    }
-}
-
 void *source_create(obs_data_t *settings, obs_source_t *source) {
     ilog("Source: \"%s\" - " PLUGIN_VERSION_STR, obs_source_get_name(source));
     obs_source_set_async_unbuffered(source, true);
 
     droidcam_obs_source *plugin = new droidcam_obs_source();
-    settings_migration(settings, plugin);
-
     plugin->source = source;
     plugin->audio_running = false;
     plugin->video_running = false;
@@ -863,19 +850,11 @@ void *source_create(obs_data_t *settings, obs_source_t *source) {
     plugin->usb_port = 0;
     plugin->use_hw = obs_data_get_bool(settings, OPT_USE_HW_ACCEL);
     plugin->video_format = (VideoFormat) obs_data_get_int(settings, OPT_VIDEO_FORMAT);
+    plugin->video_resolution = obs_data_get_int(settings, OPT_RESOLUTION);
     plugin->enable_audio  = obs_data_get_bool(settings, OPT_ENABLE_AUDIO);
     plugin->deactivateWNS = obs_data_get_bool(settings, OPT_DEACTIVATE_WNS);
     plugin->activated = obs_data_get_bool(settings, OPT_IS_ACTIVATED);
     obs_data_set_string(settings, "remote_url", "");
-
-    const char* video_resolution = obs_data_get_string(settings, OPT_RESOLUTION_STR);
-    if (!ResolutionValid(video_resolution, &plugin->video_width, &plugin->video_height)) {
-        obs_data_set_string(settings, OPT_RESOLUTION_STR, Resolutions[0]);
-        if (!ConvertRes(Resolutions[0], &plugin->video_width, &plugin->video_height)) {
-            plugin->video_width  = 1280;
-            plugin->video_height = 720;
-        }
-    }
 
     #if DROIDCAM_OVERRIDE
     plugin->deactivateWNS = true;
@@ -899,11 +878,11 @@ void *source_create(obs_data_t *settings, obs_source_t *source) {
 
     #endif
 
-    ilog("Source: activated=%d, deactivateWNS=%d, is_showing=%d, enable_audio=%d",
+    ilog("activated=%d, deactivateWNS=%d, is_showing=%d, enable_audio=%d",
         plugin->activated, plugin->deactivateWNS, plugin->is_showing, plugin->enable_audio);
-    ilog("Source: video_format=%s video_resolution=%dx%d",
+    ilog("video_format=%s video_resolution=%s",
         VideoFormatNames[plugin->video_format][1],
-        plugin->video_width, plugin->video_height);
+        Resolutions[plugin->video_resolution]);
 
     // dummy source, do not create threads & decoders
     if (obs_data_get_bool(settings, OPT_DUMMY_SOURCE)) {
@@ -917,7 +896,7 @@ void *source_create(obs_data_t *settings, obs_source_t *source) {
         plugin->device_info.ip = obs_data_get_string(settings, OPT_ACTIVE_DEV_IP);
         plugin->device_info.port = (int) obs_data_get_int(settings, OPT_APP_PORT);
         plugin->device_info.type = (DeviceType) obs_data_get_int(settings, OPT_ACTIVE_DEV_TYPE);
-        ilog("activated: device_info.id=%s device_info.ip=%s device_info.port=%d device_info.type=%d",
+        ilog("device_info.id=%s device_info.ip=%s device_info.port=%d device_info.type=%d",
             plugin->device_info.id, plugin->device_info.ip,
             plugin->device_info.port, (int) plugin->device_info.type);
 
@@ -984,26 +963,20 @@ void source_show(void *data) {
     #if defined(ENABLE_GUI) && LIBOBS_API_MAJOR_VER > 27
     obs_source_t *scene = obs_frontend_get_current_scene();
     if (scene) {
-        obs_scene_enum_items(obs_scene_from_source(scene),
-            [](obs_scene_t*, obs_sceneitem_t *item, void *data) {
-            obs_source_t* source = (obs_source_t*) data;
-            if (obs_sceneitem_get_source(item) == source) {
-                vec2 pos;
-                vec2 scale;
-                struct obs_sceneitem_crop crop;
-                obs_sceneitem_get_pos(item, &pos);
-                obs_sceneitem_get_crop(item, &crop);
-                obs_sceneitem_get_scale(item, &scale);
-                ilog("pos:%.0f,%.0f scale:%.1f,%.1f rot:%.1f crop:%d,%d; %d,%d",
-                    pos.x, pos.y, scale.x, scale.y,
-                    obs_sceneitem_get_rot(item),
-                    crop.left, crop.top, crop.right, crop.bottom);
-
-                return false; // stop enumeration
-            }
-            return true;
-        }, plugin->source);
-
+        obs_sceneitem_t *item = obs_scene_sceneitem_from_source(obs_scene_from_source(scene), plugin->source);
+        if (item) {
+            vec2 pos;
+            vec2 scale;
+            struct obs_sceneitem_crop crop;
+            obs_sceneitem_get_pos(item, &pos);
+            obs_sceneitem_get_crop(item, &crop);
+            obs_sceneitem_get_scale(item, &scale);
+            ilog("pos:%.0f,%.0f scale:%.1f,%.1f rot:%.1f crop:%d,%d; %d,%d",
+                pos.x, pos.y, scale.x, scale.y,
+                obs_sceneitem_get_rot(item),
+                crop.left, crop.top, crop.right, crop.bottom);
+            obs_sceneitem_release(item);
+        }
         obs_source_release(scene);
     }
     #endif
@@ -1092,24 +1065,18 @@ static bool video_parms_changed(void *data, obs_properties_t*, obs_property_t*,
 
     droidcam_obs_source *plugin = (droidcam_obs_source*)(data);
 
-    const char* video_resolution = obs_data_get_string(settings, OPT_RESOLUTION_STR);
+    int video_resolution = obs_data_get_int(settings, OPT_RESOLUTION);
     enum VideoFormat video_format = (VideoFormat) obs_data_get_int(settings, OPT_VIDEO_FORMAT);
 
-    int width, height;
-    if (!ResolutionValid(video_resolution, &width, &height))
-        return false;
-
-    if (width == plugin->video_width && height == plugin->video_height
+    if (video_resolution == plugin->video_resolution
         && video_format == plugin->video_format)
         return false;
 
-    ilog("video_parms_changed: video_format:%s->%s video_resolution:%dx%d->%dx%d",
-        VideoFormatNames[plugin->video_format][1], VideoFormatNames[video_format][1],
-        plugin->video_width, plugin->video_height, width, height);
-
-    plugin->video_width = width;
-    plugin->video_height = height;
+    plugin->video_resolution = video_resolution;
     plugin->video_format = video_format;
+    ilog("video_parms_changed: video_format=%d/%s video_resolution=%d/%s",
+        plugin->video_format, VideoFormatNames[plugin->video_format][1],
+        plugin->video_resolution, Resolutions[plugin->video_resolution]);
     os_event_signal(plugin->reset_signal);
     return false;
 }
@@ -1123,8 +1090,8 @@ static bool connect_clicked(obs_properties_t *ppts, obs_property_t *p, void *dat
     obs_property_set_enabled(cp, false);
 
     bool activated = obs_data_get_bool(settings, OPT_IS_ACTIVATED);
+    int video_resolution = obs_data_get_int(settings, OPT_RESOLUTION);
     enum VideoFormat video_format = (VideoFormat) obs_data_get_int(settings, OPT_VIDEO_FORMAT);
-    const char* video_resolution = obs_data_get_string(settings, OPT_RESOLUTION_STR);
 
     if (activated) {
         plugin->usb_port = 0;
@@ -1136,30 +1103,16 @@ static bool connect_clicked(obs_properties_t *ppts, obs_property_t *p, void *dat
         goto out;
     }
 
-    int width, height;
-    if (!ResolutionValid(video_resolution, &width, &height)) {
-        elog("invalid resolution: %s", video_resolution);
-        #if ENABLE_GUI
-        QString title = QString(obs_module_text("DroidCam"));
-        QString msg = QString(obs_module_text("BadResolution"));
-        QMessageBox mb(QMessageBox::Information, title, msg,
-            QMessageBox::StandardButtons(QMessageBox::Ok), main_window);
-        mb.exec();
-        #endif
-        goto out;
-    }
-
-    if (video_format == FORMAT_MJPG && (width > 1920 || height > 1080)) {
-        elog("mjpg is limited to 1920x1080");
-        #if ENABLE_GUI
+    #if ENABLE_GUI
+    if (video_format == FORMAT_MJPG && video_resolution > RESOLUTION_1080) {
         QString title = QString(obs_module_text("DroidCam"));
         QString msg = QString(obs_module_text("MJPEGLimit"));
         QMessageBox mb(QMessageBox::Information, title, msg,
             QMessageBox::StandardButtons(QMessageBox::Ok), main_window);
         mb.exec();
-        #endif
         goto out;
     }
+    #endif
 
     device_info->type = DeviceType::NONE;
     device_info->id = obs_data_get_string(settings, OPT_DEVICE_LIST);
@@ -1223,8 +1176,7 @@ static bool connect_clicked(obs_properties_t *ppts, obs_property_t *p, void *dat
 
     obs_property_set_description(cp, TEXT_DEACTIVATE);
     plugin->video_format = video_format;
-    plugin->video_width = width;
-    plugin->video_height = height;
+    plugin->video_resolution = video_resolution;
 
     toggle_ppts(ppts, false);
     obs_data_set_string(settings, OPT_ACTIVE_DEV_ID, device_info->id);
@@ -1233,7 +1185,9 @@ static bool connect_clicked(obs_properties_t *ppts, obs_property_t *p, void *dat
     obs_data_set_bool(settings, OPT_IS_ACTIVATED, true);
     plugin->activated = true;
     ilog("activated: id=%s type=%d ip=%s port=%d", device_info->id, (int)device_info->type, device_info->ip, device_info->port);
-    ilog("video_format=%s video_resolution=%dx%d", VideoFormatNames[plugin->video_format][1], plugin->video_width, plugin->video_height);
+    ilog("video_format=%d/%s video_resolution=%d/%s",
+        plugin->video_format, VideoFormatNames[plugin->video_format][1],
+        plugin->video_resolution, Resolutions[plugin->video_resolution]);
 
     out:
     obs_property_set_enabled(cp, true);
@@ -1303,7 +1257,7 @@ void source_update(void *data, obs_data_t *settings) {
     bool sync_av = false; // obs_data_get_bool(settings, OPT_SYNC_AV);
     bool activated = obs_data_get_bool(settings, OPT_IS_ACTIVATED);
 
-    dlog("on source_update: activated=%d (actual=%d) audio=%d sync_av=%d",
+    dlog("plugin_udpate: activated=%d (actual=%d) audio=%d sync_av=%d",
         plugin->activated,
         activated,
         plugin->enable_audio,
@@ -1334,15 +1288,9 @@ obs_properties_t *source_properties(void *data) {
 
     ilog("source_properties: activated=%d, uhd_unlock=%d", activated, uhd_unlock);
 
-    cp = obs_properties_add_list(ppts, OPT_RESOLUTION_STR, TEXT_RESOLUTION,
-        #if DROIDCAM_OVERRIDE
-        OBS_COMBO_TYPE_LIST,
-        #else
-        OBS_COMBO_TYPE_EDITABLE,
-        #endif
-        OBS_COMBO_FORMAT_STRING);
+    cp = obs_properties_add_list(ppts, OPT_RESOLUTION, TEXT_RESOLUTION, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
     for (size_t i = 0; i < ARRAY_LEN(Resolutions); i++) {
-        obs_property_list_add_string(cp, Resolutions[i], Resolutions[i]);
+        obs_property_list_add_int(cp, Resolutions[i], i);
         if (!uhd_unlock && i == RESOLUTION_1080) break;
     }
 
@@ -1414,5 +1362,4 @@ void source_defaults(obs_data_t *settings) {
     obs_data_set_default_bool(settings, OPT_ENABLE_AUDIO, false);
     obs_data_set_default_bool(settings, OPT_DEACTIVATE_WNS, false);
     obs_data_set_default_int(settings, OPT_APP_PORT, DEFAULT_PORT);
-    obs_data_set_default_string(settings, OPT_RESOLUTION_STR, Resolutions[0]);
 }

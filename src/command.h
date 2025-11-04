@@ -25,7 +25,7 @@
   typedef DWORD exit_code_t;
 
 static inline bool FileExists(const char *path) {
-  DWORD dwAttrib = GetFileAttributesA(path);
+  DWORD dwAttrib = GetFileAttributes(path);
   return (dwAttrib != INVALID_FILE_ATTRIBUTES && !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
 }
 #else

@@ -2,8 +2,6 @@
 #pragma once
 #include <obs-module.h>
 
-#define PLUGIN_VERSION_STR "242"
-
 #define xlog(log_level, format, ...) \
         blog(log_level, "[DroidCamOBS] " format, ##__VA_ARGS__)
 

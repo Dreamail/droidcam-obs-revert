@@ -86,20 +86,15 @@ static inline void swap_bindIP() {
             strncpy(dest, ip, sizeof(bindIP1));
             bindIP = (const char*) dest;
         }
-        blog(LOG_INFO, "[droidcam-obs] using bindIP '%s'", bindIP);
+        ilog("using bindIP '%s'", bindIP);
     }
 }
 #endif
 
 OBS_DECLARE_MODULE()
-OBS_MODULE_AUTHOR("Dev47Apps")
 OBS_MODULE_USE_DEFAULT_LOCALE("droidcam-obs", "en-US")
 MODULE_EXPORT const char *obs_module_description(void) {
-    return "Use your phone as a camera source with the DroidCam app.";
-}
-
-MODULE_EXPORT const char *obs_module_name(void) {
-    return "DroidCam";
+    return "Android and iOS camera source";
 }
 
 bool obs_module_load(void) {
@@ -107,7 +102,7 @@ bool obs_module_load(void) {
     memset(&droidcam_obs_info, 0, sizeof(struct obs_source_info));
 
     if (AV_VERSION_MAJOR(avcodec_version()) > LIBAVCODEC_VERSION_MAJOR) {
-        blog(LOG_ERROR, "[droidcam-obs] libavcodec version %u is too high (<= %d required for this release).",
+        elog("droidcam_obs: libavcodec version %u is too high (<= %d required for this release).",
             AV_VERSION_MAJOR(avcodec_version()), LIBAVCODEC_VERSION_MAJOR);
         return false;
     }
@@ -139,11 +134,6 @@ bool obs_module_load(void) {
     #if ENABLE_GUI
     main_window = (QMainWindow *)obs_frontend_get_main_window();
 
-    #ifdef __GNUC__
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wswitch"
-    #endif
-
     obs_frontend_add_event_callback([] (enum obs_frontend_event event, void*) {
         switch (event) {
             case OBS_FRONTEND_EVENT_FINISHED_LOADING:
@@ -152,10 +142,6 @@ bool obs_module_load(void) {
                 break;
         }
     }, NULL);
-
-    #ifdef __GNUC__
-    #pragma GCC diagnostic pop
-    #endif
     #endif
 
     #if DROIDCAM_OVERRIDE
@@ -170,8 +156,7 @@ bool obs_module_load(void) {
     #endif
 
     get_os_name_version(os_name_version, sizeof(os_name_version));
-    blog(LOG_INFO, "[droidcam-obs] module loaded release %s (%s)",
-        PLUGIN_VERSION_STR, os_name_version);
+    blog(LOG_INFO, "droidcam-obs module loaded (%s)", os_name_version);
     return true;
 }
 
